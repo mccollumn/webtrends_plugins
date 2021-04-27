@@ -103,6 +103,13 @@
                     name: "",
                     type: "",
                     action: ""
+                },
+                flags: {
+                    search: false,
+                    pagination: false,
+                    refine: false,
+                    scope: false,
+                    type: false
                 }
             };
         },
@@ -333,6 +340,18 @@
             search.document.action = "";
         },
 
+        resetFlags: function () {
+            const search = wt.akuminaSearch.search;
+            Object.keys(search.flags).forEach(function (key) {
+                search.flags[key] = false;
+            });
+        },
+
+        setFlag: function (event) {
+            wt.akuminaSearch.resetFlags();
+            wt.akuminaSearch.search.flags[event] = true;
+        },
+
         handleHashChange: function (event) {
             if (!wt.akuminaSearch.isSearchPage()) {
                 wt.akuminaSearch.search.count = 0;
@@ -360,6 +379,19 @@
             // Grab the current search term from the Akumina data
             if (wt.akuminaSearch.currentGeneralSearchData.Term) {
                 wt.akuminaSearch.search.term.current = wt.akuminaSearch.currentGeneralSearchData.Term;
+            }
+
+            const flag = wt.akuminaSearch.getActiveFlag();
+            if (flag) {
+                wt.akuminaSearch.resetFlags();
+                switch (flag) {
+                    case "search":
+                        wt.akuminaSearch.incrementCount();
+                        wt.akuminaSearch.setSearchData("Search");
+                        wt.akuminaSearch.track();
+                        break;
+                    default:
+                }
             }
 
             wt.akuminaSearch.attachListeners();
@@ -427,9 +459,20 @@
          */
         handleSearch: function () {
             console.log("WT - handleSearch", "Results div:", document.querySelector("div.ia-search-results"), wt.akuminaSearch.timeSinceInit());
-            wt.akuminaSearch.incrementCount();
-            wt.akuminaSearch.setSearchData("Search");
-            wt.akuminaSearch.track();
+            wt.akuminaSearch.setFlag("search");
+            // wt.akuminaSearch.incrementCount();
+            // wt.akuminaSearch.setSearchData("Search");
+            // wt.akuminaSearch.track();
+        },
+
+        getActiveFlag: function () {
+            let activeFlag;
+            Object.keys(search.flags).forEach(function (key) {
+                if (search.flags[key] === true) {
+                    activeFlag = key;
+                }
+            });
+            return activeFlag;
         },
 
         /**
