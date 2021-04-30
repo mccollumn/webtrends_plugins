@@ -7,7 +7,6 @@
  * 
  * Notes:
  *  Internet Explorer is not supported.
- *  Requires allClick tracking to be enabled in the SharePoint tracking.
  * 
  * Example of plugin options:
  *  async: false,
@@ -16,25 +15,25 @@
  *  searchPage: "akuminasearch.aspx"
  * 
  * @author      Nick M.
- * @version     0.9.13
+ * @version     0.9.15
  */
 
 // Limitations:
 // Don't know number of results or page number for People
 // Passing oss_r = 1 for successful search. Page num is always 1.
 
-// Results perPage, used to calculate the page number, can be inaccurate if user is on the last page.
+// Results perPage, used to calculate the page number, can potentially be inaccurate if user is on the last page.
 
 
 (function (document, undefined) {
     const SEARCH_BOX = typeof Akumina !== "undefined" ? Akumina.Digispace.ConfigurationContext.SearchBox : "#siteSearch";
     const SEARCH_BUTTON = typeof Akumina !== "undefined" ? Akumina.Digispace.ConfigurationContext.SearchButton : ".ia-search-combo .ia-search-site-btn";
     const GENERAL_RESULT_LINKS = ".ia-search-results a.ak-spalink";
-    const PEOPLE_RESULT_LINKS = ".ia-people-results a";
+    const PEOPLE_RESULT_LINKS = ".ia-people-results a.ia-profile-detail-link, .ia-contact-links a";
     const PEOPLE_POPUP_LINKS = "#user-popup a";
     const PAGINATION_SHOW_MORE = "div.showMoreResults a";
     const PAGINATION_BUTTONS = "a.ak-search-paging-forwardbutton, a.ak-search-paging-backbutton";
-    const REFINER_LINKS = ".ia-search-refiner-results-container a.ak-search-refiner";
+    const REFINER_LINKS = ".ia-search-refiner-results-container a.ak-search-refiner, .ia-people-filters li";
     const SEARCH_TYPES = "nav.ia-transformer-tab-nav li";
     
     let wt;
@@ -67,7 +66,7 @@
                         wt.akuminaSearch.searchTracking();
                     });
                     wt.akuminaSearch.initTime = Date.now();
-                    wt.akuminaSearch.log("WT - Akumina Search - init");
+                    wt.akuminaSearch.log("init");
                     wt.akuminaSearch.registerPlugin();
                 }
             }, 100);
@@ -127,7 +126,7 @@
          * @returns {Array} Parameter-value pairs sent with search events
          */
         getSearchData: function () {
-            const searchData = [
+            return [
                 "WT.oss", decodeURIComponent(wt.akuminaSearch.search.term.current.toString()),
                 "WT.oss_r", wt.akuminaSearch.search.results.count.toString(),
                 "WT.oss_ref", wt.akuminaSearch.search.refiners.toString(),
@@ -143,7 +142,6 @@
                 "WT.shp_srch_site", wt.spPageContextInfo.webAbsoluteUrl || "",
                 "WT.dl", "SRCH"
             ];
-            return searchData;
         },
 
         /**
@@ -151,7 +149,7 @@
          * @returns {Array} Parameter-value pairs sent with result clicks
          */
         getResultClickData: function () {
-            const resultData = [
+            return [
                 "WT.shp_doc_a", wt.akuminaSearch.search.document.action,
                 "WT.shp_doc", wt.akuminaSearch.search.document.name,
                 "WT.shp_doc_type", wt.akuminaSearch.search.document.type,
@@ -172,9 +170,9 @@
                 "WT.shp_srch_count", wt.akuminaSearch.search.count.toString(),
                 "WT.shp_srch_col", wt.spPageContextInfo.siteAbsoluteUrl || "",
                 "WT.shp_srch_site", wt.spPageContextInfo.webAbsoluteUrl || "",
+                "WT.ti", wt.akuminaSearch.search.resultItem.item || "Search Results",
                 "WT.dl", "SRCH"
             ];
-            return resultData;
         },
 
         /**
@@ -204,13 +202,22 @@
             return data;
         },
 
+        /**
+         * Returns the time in milliseconds since the plugin initialized.
+         * @returns {Number} Time in milliseconds.
+         */
         timeSinceInit: function () {
             return Date.now() - wt.akuminaSearch.initTime;
         },
 
+        /**
+         * Outputs information to the console for debugging purposes.
+         * @param {String} message Text to be included in the logging.
+         * @param {*} data Any additional data to output.
+         */
         log: function (message, data = "") {
             if (wt.akuminaSearch.logging) {
-                console.log(message, data, wt.akuminaSearch.timeSinceInit());
+                console.log(`WT - Akumina Search - ${message}`, data, wt.akuminaSearch.timeSinceInit());
             }
         },
 
@@ -254,6 +261,20 @@
         },
 
         /**
+         * Returns true if the provided path is to a document. Otherwise false.
+         * @param {String} path The document path.
+         * @param {Array} types Array of document file extensions.
+         * @returns 
+         */
+        isDoc: function (path, types) {
+            const extension = path.toLowerCase().substring(path.lastIndexOf(".") + 1).trim();
+            if (types.includes(extension)) {
+                return true;
+            }
+            return false;
+        },
+
+        /**
          * Reads and sets plugin options.
          * @param {Object} options - User defined plugin options
          */
@@ -274,12 +295,11 @@
          * Subscribes to Akumina search complete events
          */
         bindAkuminaEvents: function () {
-            wt.akuminaSearch.log("WT - Akumina Search - bindAkuminaEvents");
+            wt.akuminaSearch.log("bindAkuminaEvents");
             if (typeof Akumina !== "undefined" && !wt.akuminaSearch.akuminaEventsSubscribed) {
                 Akumina.Digispace.AppPart.Eventing.Subscribe('/genericsearchlist/loaded/', function (data) {wt.akuminaSearch.handleGeneralSearchEvent(data);});
                 Akumina.Digispace.AppPart.Eventing.Subscribe('/peopledirectory/searchcompleted/', function (data) {wt.akuminaSearch.handlePeopleSearchEvent(data);});
-                Akumina.Digispace.AppPart.Eventing.Subscribe('/loader/completed/', function (data) {wt.akuminaSearch.handleLoaderCompleteEvent(data);});
-                Akumina.Digispace.AppPart.Eventing.Subscribe('/dashboardcontainer/render/', function (data) {wt.akuminaSearch.handleDashboardRenderEvent(data);});
+                Akumina.Digispace.AppPart.Eventing.Subscribe('/widget/loaded/', function (data) {wt.akuminaSearch.handleWidgetLoadedEvent(data);});
                 wt.akuminaSearch.akuminaEventsSubscribed = true;
             }
         },
@@ -288,10 +308,8 @@
          * Adds event listeners on the Akumina search page
          */
         bindClickEvents: function () {
-            wt.akuminaSearch.log("WT - Akumina Search - bindClickEvents");
-            if (!wt.akuminaSearch.isjQueryLoaded()) {
-                return;
-            }
+            wt.akuminaSearch.log("bindClickEvents");
+            if (!wt.akuminaSearch.isjQueryLoaded()) return;
 
             // Hash Change
             $(window).on("hashchange", function (event) {
@@ -333,9 +351,9 @@
                     wt.akuminaSearch.handleSearch();
                 }
             });
-            $(document).on("mousedown", SEARCH_BUTTON, function () {
-                wt.akuminaSearch.handleSearch();
-            });
+            // $(document).on("mousedown", SEARCH_BUTTON, function () {
+            //     wt.akuminaSearch.handleSearch();
+            // });
 
             wt.akuminaSearch.listenersAttached = true;
         },
@@ -363,6 +381,9 @@
             search.document.action = "";
         },
 
+        /**
+         * Resets all search flags to false.
+         */
         resetFlags: function () {
             const search = wt.akuminaSearch.search;
             Object.keys(search.flags).forEach(function (key) {
@@ -370,10 +391,70 @@
             });
         },
 
+        /**
+         * Sets the specified flag to true.
+         * @param {String} event Name of flag to set.
+         */
         setFlag: function (event) {
-            wt.akuminaSearch.log("WT - Akumina Search - setFlag", event);
+            wt.akuminaSearch.log("setFlag", event);
             wt.akuminaSearch.resetFlags();
             wt.akuminaSearch.search.flags[event] = true;
+        },
+
+        /**
+         * Takes the appropriate actions based on the currently active search flag.
+         */
+        processFlag: function () {
+            const flag = wt.akuminaSearch.getActiveFlag();
+            if (!flag) return;
+            wt.akuminaSearch.resetFlags();
+            switch (flag) {
+                case "search":
+                    wt.akuminaSearch.waitForResults(function () {
+                        wt.akuminaSearch.incrementCount();
+                        wt.akuminaSearch.setSearchData("Search");
+                        wt.akuminaSearch.track();
+                    });
+                    break;
+                case "refine":
+                    wt.akuminaSearch.setResultCount();
+                    wt.akuminaSearch.track();
+                    wt.akuminaSearch.search.refiners = "";
+                    break;
+                case "type":
+                    wt.akuminaSearch.setResultCount();
+                    wt.akuminaSearch.track();
+                    break;
+                default:
+            }
+        },
+
+        /**
+         * Waits for the search results to finish loading or 5 seconds, whichever occurs first.
+         * @param {Function} callback Function to run when done waiting.
+         */
+        waitForResults: function (callback) {
+            wt.akuminaSearch.log("waitForResults");
+            const widgetEl = document.querySelector("div.ak-widget");
+            const widgetObserver = new MutationObserver(function (mutations) {
+                const mutation = mutations.find(({ target }) => target.className.includes("ak-widget"));
+                if (!mutation) return;
+                for (const node of mutation.addedNodes) {
+                    if (node.classList && node.classList.contains("ia-search-tiles")) {
+                        widgetObserver.disconnect();
+                        callback();
+                        return;
+                    }
+                }
+            });
+            widgetObserver.observe(widgetEl, {characterData: false, attributes: false, childList: true, subtree: true});
+
+            // Stop waiting after 5 seconds
+            setTimeout(function () {
+                widgetObserver.disconnect();
+                callback();
+                return;
+            }, 5000);
         },
 
         /**
@@ -383,17 +464,34 @@
         handleHashChange: function (event) {
             if (!wt.akuminaSearch.isSearchPage()) {
                 wt.akuminaSearch.search.count = 0;
+                wt.akuminaSearch.search.term.original = "";
                 wt.akuminaSearch.search.isSearchPage = false;
             }
-            wt.akuminaSearch.log("WT - Akumina Search - Hash Change. Search page =", wt.akuminaSearch.isSearchPage());
+            wt.akuminaSearch.log("Hash Change. Search page =", wt.akuminaSearch.isSearchPage());
         },
 
-        handleLoaderCompleteEvent: function (data) {
-            wt.akuminaSearch.log("WT - Akumina Search - Akumina Loader Complete Event:", data);
-        },
+        /**
+         * Event handler for the Akumina /widget/loaded/ event.
+         * The event is primarily used to signal when the search page is done loading.
+         * @param {Object} data Data object returned from the Akumina /widget/loaded/ event.
+         */
+        handleWidgetLoadedEvent: function (data) {
+            wt.akuminaSearch.log("Akumina Widget Loaded Event:", data);
 
-        handleDashboardRenderEvent: function (data) {
-            wt.akuminaSearch.log("WT - Akumina Search - Akumina Dashboard Render Event:", data);
+            if (!data) {
+                return;
+            }
+            wt.akuminaSearch.currentWidgetLoadedData = data;
+
+            if (data.properties.widgetname === "GenericSearchListWidget") {
+                wt.akuminaSearch.processFlag();
+            }
+            // handlePeopleSearchEvent() should catch this, but including here as a fall back
+            if (data.properties.widgetname === "PeopleDirectoryWidget") {
+                wt.akuminaSearch.processFlag();
+            }
+
+            wt.akuminaSearch.attachListeners();
         },
 
         /**
@@ -401,25 +499,17 @@
          * @param {Object} data - Data object returned from the Akumina /genericsearchlist/loaded/ event
          */
         handleGeneralSearchEvent: function (data) {
-            wt.akuminaSearch.log("WT - Akumina Search - Akumina General Search Event:", data);
+            wt.akuminaSearch.log("Akumina General Search Event:", data);
+
+            if (!data) {
+                return;
+            }
+
             wt.akuminaSearch.currentGeneralSearchData = data;
 
             // Grab the current search term from the Akumina data
-            if (wt.akuminaSearch.currentGeneralSearchData.Term) {
+            if (wt.akuminaSearch.currentGeneralSearchData && wt.akuminaSearch.currentGeneralSearchData.Term) {
                 wt.akuminaSearch.search.term.current = wt.akuminaSearch.currentGeneralSearchData.Term;
-            }
-
-            const flag = wt.akuminaSearch.getActiveFlag();
-            if (flag) {
-                wt.akuminaSearch.resetFlags();
-                switch (flag) {
-                    case "search":
-                        wt.akuminaSearch.incrementCount();
-                        wt.akuminaSearch.setSearchData("Search");
-                        wt.akuminaSearch.track();
-                        break;
-                    default:
-                }
             }
 
             wt.akuminaSearch.attachListeners();
@@ -430,9 +520,16 @@
          * @param {Object} data - Data object returned from the Akumina /peopledirectory/searchcompleted/ event
          */
         handlePeopleSearchEvent: function (data) {
-            wt.akuminaSearch.log("WT - Akumina Search - Akumina People Search Event:", data);
+            if (!data) return;
+
+            wt.akuminaSearch.log("Akumina People Search Event:", data);
             wt.akuminaSearch.currentPeopleSearchData = data;
             wt.akuminaSearch.search.type = "People";
+
+            if (data.caller === "search" || data.caller === "facets") {
+                wt.akuminaSearch.processFlag();
+            }
+
             wt.akuminaSearch.attachListeners();
         },
 
@@ -441,7 +538,7 @@
          * @param {Object} el - DOM element that was clicked
          */
         handleResultClick: function (el) {
-            wt.akuminaSearch.log("WT - Akumina Search - handleResultClick:", el);
+            wt.akuminaSearch.log("handleResultClick:", el);
             if (wt.akuminaSearch.isSearchPage()) {
                 wt.akuminaSearch.setSearchData("");
             }
@@ -456,7 +553,7 @@
          * Event handler for pagination events
          */
         handlePagination: function (el) {
-            wt.akuminaSearch.log("WT - Akumina Search - handlePagination");
+            wt.akuminaSearch.log("handlePagination");
             wt.akuminaSearch.setSearchData("Pagination", el);
             wt.akuminaSearch.track();
         },
@@ -466,61 +563,33 @@
          * @param {Object} el - DOM element that was clicked
          */
         handleRefinement: function (el) {
-            wt.akuminaSearch.log("WT - Akumina Search - handleRefinement:", el);
+            wt.akuminaSearch.log("handleRefinement:", el);
             wt.akuminaSearch.setSearchData("Refinement", el);
-            wt.akuminaSearch.track();
-            wt.akuminaSearch.search.refiners = "";
+            wt.akuminaSearch.setFlag("refine");
         },
 
         /**
          * Event handler for type change events
          */
         handleTypeChange: function (el) {
-            wt.akuminaSearch.log("WT - Akumina Search - handleTypeChange");
+            wt.akuminaSearch.log("handleTypeChange");
             wt.akuminaSearch.incrementCount();
             wt.akuminaSearch.setSearchData("Type Change", el);
-            wt.akuminaSearch.track();
+            wt.akuminaSearch.setFlag("type");
         },
 
         /**
          * Event handler for search events
          */
         handleSearch: function () {
-            wt.akuminaSearch.log("WT - Akumina Search - handleSearch", "Results div:", document.querySelector("div.ia-search-results"));
-            // wt.akuminaSearch.setFlag("search");
-
-            // const resultsLoaded = setInterval(function () {
-            //     if (wt.akuminaSearch.getPagingText !== "") {
-            //         clearInterval(resultsLoaded);
-            //         wt.akuminaSearch.incrementCount();
-            //         wt.akuminaSearch.setSearchData("Search");
-            //         wt.akuminaSearch.track();
-            //     }
-            // }, 100);
-
-            // const pagingDiv = document.querySelector("span.ak-search-paging-display");
-            const widgetDiv = document.querySelector("div.ak-widget");
-
-            const widgetObserver = new MutationObserver(function (mutations) {
-                console.log("WT - widgetObserver", mutations);
-                for (const mutation of mutations) {
-                    if (mutation.target.className === "ak-widget") {
-                        for (const node of mutation.addedNodes) {
-                            if (node.classList && node.classList.contains("ia-search-tiles")) {
-                                console.log("WT - results ready", wt.akuminaSearch.getPagingText());
-                                wt.akuminaSearch.incrementCount();
-                                wt.akuminaSearch.setSearchData("Search");
-                                wt.akuminaSearch.track();
-                            }
-                        }
-                    }
-
-                }
-
-            });
-            widgetObserver.observe(widgetDiv, {characterData: false, attributes: false, childList: true, subtree: true});
+            wt.akuminaSearch.log("handleSearch");
+            wt.akuminaSearch.setFlag("search");
         },
 
+        /**
+         * Gets the currently active search flag.
+         * @returns {String} The currently active search flag.
+         */
         getActiveFlag: function () {
             const search = wt.akuminaSearch.search;
             let activeFlag;
@@ -617,7 +686,7 @@
                 term = searchBox ? searchBox.value : "";
             }
             wt.akuminaSearch.search.term.current = term;
-            wt.akuminaSearch.log("WT - Akumina Search - setCurrentTerm complete:", wt.akuminaSearch.search.term.current);
+            wt.akuminaSearch.log("setCurrentTerm complete:", wt.akuminaSearch.search.term.current);
         },
 
         /**
@@ -626,37 +695,28 @@
         setOriginalTerm: function () {
             const search = wt.akuminaSearch.search;
             search.term.original = search.term.original ? search.term.original : search.term.current;
-            // if (search.action === "Suggested Item" || search.action === "Search") {
-            //     search.term.original = search.term.original ? search.term.original : search.term.current;
-            //     console.log("WT - Akumina Search - setOriginalTerm complete:", wt.akuminaSearch.search.term.original, wt.akuminaSearch.timeSinceInit());
-            //     return;
-            // }
 
             const SEARCH_TERM_PARAM = "term";
             const url = new URL(document.location);
             const queryStr = url.search;
             const hash = url.hash;
             const regex = new RegExp(`${SEARCH_TERM_PARAM}=([^&]+)`, "i");
-            // let term = "";
 
             // Read "term" param from query string, which may actually be part of the hash
             if (queryStr && queryStr.toLowerCase().includes(`${SEARCH_TERM_PARAM}=`)) {
-                // term = queryStr.match(regex)[1];
                 wt.akuminaSearch.search.term.original = queryStr.match(regex)[1];
             }
             else if (hash && hash.toLowerCase().includes(`${SEARCH_TERM_PARAM}=`)) {
-                // term = hash.match(regex)[1];
                 wt.akuminaSearch.search.term.original = hash.match(regex)[1];
             }
-            // wt.akuminaSearch.search.term.original = term;
-            wt.akuminaSearch.log("WT - Akumina Search - setOriginalTerm complete:", wt.akuminaSearch.search.term.original);
+            wt.akuminaSearch.log("setOriginalTerm complete:", wt.akuminaSearch.search.term.original);
         },
 
         /**
          * Stores the total number of search results
          */
         setResultCount: function () {
-            // wt.akuminaSearch.setSearchType();
+            // If this is a people search then just check whether there were any results.
             if (wt.akuminaSearch.search.type === "People") {
                 if (wt.akuminaSearch.currentPeopleSearchData && wt.akuminaSearch.currentPeopleSearchData.searchResults.length === 0) {
                     wt.akuminaSearch.search.results.count = 0;
@@ -665,10 +725,8 @@
                     wt.akuminaSearch.search.results.count = 1;
                 }
             }
-            // The number of results after a type change isn't known when the button is clicked
-            else if (wt.akuminaSearch.search.action === "Type Change") {
-                wt.akuminaSearch.search.results.count = "";
-            }
+
+            // Determine number of results by parsing text at the bottom of the search results.
             else {
                 const resultsDiv = document.querySelector("div.ia-search-results");
                 if (resultsDiv && resultsDiv.textContent.includes("No results")) {
@@ -678,7 +736,7 @@
                     wt.akuminaSearch.search.results.count = wt.akuminaSearch.getResultCount();
                 }
             }
-            wt.akuminaSearch.log("WT - Akumina Search - setResultCount complete:", wt.akuminaSearch.search.results.count);
+            wt.akuminaSearch.log("setResultCount complete:", wt.akuminaSearch.search.results.count);
         },
 
         /**
@@ -686,17 +744,26 @@
          * @param {Object} el - DOM element for refiner that was clicked
          */
         setRefiners: function (el) {
-            if (el) {
-                const refineType = el.textContent;
-                const refineValue = el.dataset.name;
-                if (refineType && refineValue) {
-                    wt.akuminaSearch.search.refiners = `${refineType}:${refineValue}`;
-                }
+            if (!el) {
+                wt.akuminaSearch.search.refiners = "";
+                return;
+            }
+
+            let refineType;
+            let refineValue;
+            if (wt.akuminaSearch.search.type === "People") {
+                const section = el.closest(".ia-people-filter");
+                refineType = section.querySelector(".ia-people-filter-header").textContent || "";
+                refineValue = el.innerText || "";
             }
             else {
-                wt.akuminaSearch.search.refiners = "";
+                refineType = el.textContent || "";
+                refineValue = el.dataset.name || "";
             }
-            wt.akuminaSearch.log("WT - Akumina Search - setRefiners complete:", wt.akuminaSearch.search.refiners);
+            if (refineType && refineValue) {
+                wt.akuminaSearch.search.refiners = `${refineType}:${refineValue}`;
+            }
+            wt.akuminaSearch.log("setRefiners complete:", wt.akuminaSearch.search.refiners);
         },
 
         /**
@@ -705,26 +772,34 @@
          */
         setAction: function (eventType) {
             wt.akuminaSearch.search.action = eventType ? eventType : "";
-            wt.akuminaSearch.log("WT - Akumina Search - setAction complete:", wt.akuminaSearch.search.action);
+            wt.akuminaSearch.log("setAction complete:", wt.akuminaSearch.search.action);
         },
 
         /**
          * Stores the current search result page number
          */
         setResultPage: function (el) {
-            // wt.akuminaSearch.setSearchType();
             if (wt.akuminaSearch.search.type === "People") {
                 wt.akuminaSearch.search.results.pagination = 1;
             }
             else {
                 const firstResultNum = wt.akuminaSearch.getFirstResultNum();
-                const lastResultNum = wt.akuminaSearch.getLastResultNum();
-                let perPage = lastResultNum - firstResultNum + 1;
-                // The perPage calculation can be wrong on the last results page.
-                // If we already have a perPage value that is larger, use it instead.
-                perPage = wt.akuminaSearch.search.results.perPage > perPage ? wt.akuminaSearch.search.results.perPage : perPage;
+
+                let perPage;
+                // This will provide the most reliable number of results per page, so use it if it's available.
+                if (wt.akuminaSearch.currentWidgetLoadedData && wt.akuminaSearch.currentWidgetLoadedData.pageSize) {
+                    perPage = wt.akuminaSearch.currentWidgetLoadedData.pageSize;
+                }
+                // Calculate results per page by parsing the text at the bottom of the search results page.
+                else {
+                    const lastResultNum = wt.akuminaSearch.getLastResultNum();
+                    perPage = lastResultNum - firstResultNum + 1;
+                    // The perPage calculation can be wrong on the last results page.
+                    // If we already have a perPage value that is larger, use it instead.
+                    perPage = wt.akuminaSearch.search.results.perPage > perPage ? wt.akuminaSearch.search.results.perPage : perPage;
+                }
+
                 const previousPages = Math.trunc(firstResultNum / perPage);
-                // wt.akuminaSearch.search.results.pagination = previousPages + 1;
                 const currentPage = previousPages + 1;
                 const nextPage = currentPage + 1;
 
@@ -740,7 +815,7 @@
 
                 wt.akuminaSearch.search.results.perPage = perPage;
             }
-            wt.akuminaSearch.log("WT - Akumina Search - setResultPage complete:", wt.akuminaSearch.search.results.pagination);
+            wt.akuminaSearch.log("setResultPage complete:", wt.akuminaSearch.search.results.pagination);
         },
 
         /**
@@ -757,9 +832,9 @@
          */
         setSearchType: function (el) {
             // This will capture the tab that was just clicked
-            if (el) {
+            if (el && el.closest("li[role='tab']")) {
                 wt.akuminaSearch.search.type = el.textContent.trim();
-                wt.akuminaSearch.log("WT - Akumina Search - setSearchType complete:", wt.akuminaSearch.search.type);
+                wt.akuminaSearch.log("setSearchType complete:", wt.akuminaSearch.search.type);
                 return;
             }
 
@@ -773,7 +848,7 @@
             else {
                 wt.akuminaSearch.search.type = "";
             }
-            wt.akuminaSearch.log("WT - Akumina Search - setSearchType complete:", wt.akuminaSearch.search.type);
+            wt.akuminaSearch.log("setSearchType complete:", wt.akuminaSearch.search.type);
         },
 
         /**
@@ -791,7 +866,6 @@
          * @param {Object} el - DOM element of result that was clicked
          */
         setItem: function (el) {
-            // wt.akuminaSearch.setSearchType();
             if (wt.akuminaSearch.search.type === "People") {
                 wt.akuminaSearch.setPeopledata(el);
                 wt.akuminaSearch.search.resultItem.item = wt.akuminaSearch.search.people.name;
@@ -799,8 +873,7 @@
             else {
                 const plugin = window.wt_sp_globals.pluginObj;
                 const url = new URL(el.href);
-                const isDoc = plugin.isDoc(url.href, plugin.types);
-                // wt.akuminaSearch.search.resultItem.item = plugin.isDoc(url.href, plugin.types) ? wt.akuminaSearch.getFilename(url) : wt.akuminaSearch.getLinkTitle(el);
+                const isDoc = wt.akuminaSearch.isDoc(url.pathname, plugin.types);
                 if (isDoc) {
                     const filename = wt.akuminaSearch.getFilename(url);
                     wt.akuminaSearch.search.resultItem.item = filename;
@@ -810,7 +883,7 @@
                     wt.akuminaSearch.search.resultItem.item = wt.akuminaSearch.getLinkTitle(el);
                 }
             }
-            wt.akuminaSearch.log("WT - Akumina Search - setItem complete:", wt.akuminaSearch.search.resultItem.item);
+            wt.akuminaSearch.log("setItem complete:", wt.akuminaSearch.search.resultItem.item);
         },
 
         /**
@@ -826,16 +899,15 @@
          * @param {Object} el - DOM element of result that was clicked
          */
         setItemType: function (el) {
-            // wt.akuminaSearch.setSearchType();
             if (wt.akuminaSearch.search.type === "People") {
                 wt.akuminaSearch.search.resultItem.type = "People";
             }
             else {
                 const plugin = window.wt_sp_globals.pluginObj;
                 const url = new URL(el.href);
-                wt.akuminaSearch.search.resultItem.type = plugin.isDoc(url.href, plugin.types) ? "Document" : "URL";
+                wt.akuminaSearch.search.resultItem.type = wt.akuminaSearch.isDoc(url.pathname, plugin.types) ? "Document" : "URL";
             }
-            wt.akuminaSearch.log("WT - Akumina Search - setItemType complete:", wt.akuminaSearch.search.resultItem.type);
+            wt.akuminaSearch.log("setItemType complete:", wt.akuminaSearch.search.resultItem.type);
         },
 
         /**
@@ -843,7 +915,6 @@
          * @param {Object} el - DOM element of result that was clicked
          */
         setPosition: function (el) {
-            // wt.akuminaSearch.setSearchType();
             if (wt.akuminaSearch.search.type === "People") {
                 const row = el.closest("tr");
                 const profile = el.closest("div.ia-profile-container");
@@ -858,11 +929,9 @@
                 wt.akuminaSearch.setResultPage();
                 const perPage = wt.akuminaSearch.search.results.perPage;
                 const previousPages = wt.akuminaSearch.search.results.pagination - 1;
-                //const list = document.querySelector("div.ia-search-results ul");
-                // wt.akuminaSearch.search.resultItem.position = (previousPages * perPage) + wt.akuminaSearch.countListItems(list) || "";
                 wt.akuminaSearch.search.resultItem.position = (previousPages * perPage) + wt.akuminaSearch.getPositionInList(el) || "";
             }
-            wt.akuminaSearch.log("WT - Akumina Search - setPosition complete:", wt.akuminaSearch.search.resultItem.position);
+            wt.akuminaSearch.log("setPosition complete:", wt.akuminaSearch.search.resultItem.position);
         },
 
         /**
@@ -872,27 +941,27 @@
         setPeopleAction: function (el) {
             if (el.className.includes("ia-profile-detail-link")) {
                 wt.akuminaSearch.search.people.action = "Details";
-                wt.akuminaSearch.log("WT - Akumina Search - Details Click");
+                wt.akuminaSearch.log("Details Click");
                 return;
             }
             if (el.href.includes("tel:")) {
                 wt.akuminaSearch.search.people.action = "Call";
-                wt.akuminaSearch.log("WT - Akumina Search - Call Click");
+                wt.akuminaSearch.log("Call Click");
                 return;
             }
             if (el.href.includes("mailto:")) {
                 wt.akuminaSearch.search.people.action = "Email";
-                wt.akuminaSearch.log("WT - Akumina Search - Email Click");
+                wt.akuminaSearch.log("Email Click");
                 return;
             }
             if (el.className.includes("ia-ms-team-icon")) {
                 wt.akuminaSearch.search.people.action = "Teams";
-                wt.akuminaSearch.log("WT - Akumina Search - Teams Click");
+                wt.akuminaSearch.log("Teams Click");
                 return;
             }
             if (el.className.includes("enc-emp-link")) {
                 wt.akuminaSearch.search.people.action = "View Full Profile";
-                wt.akuminaSearch.log("WT - Akumina Search - View Full Profile");
+                wt.akuminaSearch.log("View Full Profile");
                 return;
             }
         },
@@ -910,22 +979,12 @@
                 wt.akuminaSearch.search.people.title = modal.querySelector(".ia-profile-title").textContent.trim();
                 wt.akuminaSearch.search.people.department = modal.querySelector(".ia-profile-full > p").textContent.replace("Department:", "").trim();
             }
-
-            // const modal = el.closest("div.ia-profile-container");
-            // const row = el.closest("tr");
-            
-            // if (modal) {
-            //     wt.akuminaSearch.search.people.name = modal.querySelector(".ia-profile-name").textContent.trim();
-            //     wt.akuminaSearch.search.people.title = modal.querySelector(".ia-profile-title").textContent.trim();
-            //     wt.akuminaSearch.search.people.department = modal.querySelector(".ia-profile-dept").textContent.replace("Department:", "").trim();
-            // }
             else if (row) {
                 wt.akuminaSearch.search.people.name = row.querySelector("a.ia-profile-detail-link").textContent.trim();
             }
 
             wt.akuminaSearch.setPeopleAction(el);
-
-            wt.akuminaSearch.log("WT - Akumina Search - setPeopledata complete:", wt.akuminaSearch.search.people.name + " - " + wt.akuminaSearch.search.people.title + " - " + wt.akuminaSearch.search.people.department);
+            wt.akuminaSearch.log("setPeopledata complete:", wt.akuminaSearch.search.people.name + " - " + wt.akuminaSearch.search.people.title + " - " + wt.akuminaSearch.search.people.department);
         },
 
         /**
@@ -934,7 +993,7 @@
          * @param {Object} el - DOM element of the search component that was clicked
          */
         setSearchData: function (eventType, el) {
-            wt.akuminaSearch.log("WT - Akumina Search - setSearchData started");
+            wt.akuminaSearch.log("setSearchData started");
             // The order of these function calls matters, as some expect current data to already be set.
             wt.akuminaSearch.setSearchType(el);
             wt.akuminaSearch.setAction(eventType);
@@ -945,7 +1004,7 @@
             wt.akuminaSearch.setRefiners(el);
             wt.akuminaSearch.setResultPage(el);
 
-            wt.akuminaSearch.log("WT - Akumina Search - setSearchData finished:", wt.akuminaSearch.getSearchData());
+            wt.akuminaSearch.log("setSearchData finished:", wt.akuminaSearch.getSearchData());
         },
 
         /**
@@ -958,7 +1017,7 @@
             wt.akuminaSearch.setItemType(el);  // Document, URL, People
             wt.akuminaSearch.setPosition(el);
 
-            wt.akuminaSearch.log("WT - Akumina Search - setResultClickData finished:", wt.akuminaSearch.getResultClickData());
+            wt.akuminaSearch.log("setResultClickData finished:", wt.akuminaSearch.getResultClickData());
         },
 
         /**
@@ -969,50 +1028,12 @@
         },
 
         /**
-         * Returns the number of items in an HTML list
-         * @param {Object} list - The <ul> element containing search results
-         * @returns {number} The number of items (<li> elements) in the list
-         */
-        countListItems: function (list) {
-            // TODO: Verify if this function is needed anymore
-            let i = 0;
-            let itemCount = 0;
-
-            while (list.getElementsByTagName("li")[i++]) {
-                itemCount++;
-            }
-            return itemCount;
-        },
-
-        /**
          * Adds a transform containing the search information to be added to the click event
          * @param {string} eventType - The type of search event that occurred
          */
         transform: function (eventType) {
-            // let data = [];
-            // if (wt.akuminaSearch.isSearchPage()) {
-            //     if (eventType === "result") {
-            //         data.push(...wt.akuminaSearch.getResultClickData());
-            //     }
-            //     else {
-            //         data.push(...wt.akuminaSearch.getSearchData());
-            //     }
-            // }
-            // else {
-            //     if (eventType === "result") {
-            //         let search = wt.akuminaSearch.getSearchData();
-            //         let result = wt.akuminaSearch.getResultClickData();
-            //         // data = [...new Set([...search, ...result])];
-            //         data = [...search, ...result];
-            //     }
-            //     else {
-            //         data.push(...wt.akuminaSearch.getSearchData());
-            //     }
-            // }
-    
-            wt.akuminaSearch.log("WT - Akumina Search - transform:", wt.akuminaSearch.getEventData(eventType));
+            wt.akuminaSearch.log("transform:", wt.akuminaSearch.getEventData(eventType));
 
-            // TODO: Sort this out. Temporarily firing multitrack for testing purposes.
             const plugin = window.wt_sp_globals.pluginObj;
             plugin.tagObj.addTransform(function (dcsObject, multiTrackObject) {
                 multiTrackObject.argsa.push(wt.akuminaSearch.getEventData(eventType));
@@ -1024,7 +1045,7 @@
          * @param {string} eventType - The type of search event that occurred
          */
         track: function (eventType) {
-            wt.akuminaSearch.log("WT - Akumina Search - track:", wt.akuminaSearch.getEventData(eventType));
+            wt.akuminaSearch.log("track:", wt.akuminaSearch.getEventData(eventType));
 
             const plugin = window.wt_sp_globals.pluginObj;
             Webtrends.multiTrack({
@@ -1040,22 +1061,14 @@
          * Attaches listeners on search page and adds search data to the page load event
          */
         searchTracking: function () {
-                wt.akuminaSearch.log("WT - Akumina Search - searchTracking page loaded");
-
+                wt.akuminaSearch.log("searchTracking start");
                 wt.akuminaSearch.bindAkuminaEvents();
 
+                // If we're already on a search page then go ahead and send a search event now.
                 if (wt.akuminaSearch.isSearchPage()) {
                     wt.akuminaSearch.setSearchData("Search");
                     wt.akuminaSearch.incrementCount();
                     wt.akuminaSearch.attachListeners();
-
-                    // Track search page load
-                    wt.akuminaSearch.log("WT - Akumina Search - searchTracking transform:", wt.akuminaSearch.getSearchData());
-                    // const plugin = window.wt_sp_globals.pluginObj;
-                    // plugin.tagObj.addTransform(function (dcsObject, multiTrackObject) {
-                    //     multiTrackObject.argsa.push(wt.akuminaSearch.getSearchData());
-                    // }, "collect");
-
                     wt.akuminaSearch.track();
                 }
         }
