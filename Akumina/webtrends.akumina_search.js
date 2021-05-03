@@ -15,15 +15,14 @@
  *  searchPage: "akuminasearch.aspx"
  * 
  * @author      Nick M.
- * @version     0.9.15
+ * @version     0.9.16
+ * 
+ * Limitations:
+ * People search doesn't indicate the number of results.
+ *  Passing WT.oss_r = 1 for successful search.
+ * People search uses Load More Results rather than pagination.
+ *  Page number will always be 1.
  */
-
-// Limitations:
-// Don't know number of results or page number for People
-// Passing oss_r = 1 for successful search. Page num is always 1.
-
-// Results perPage, used to calculate the page number, can potentially be inaccurate if user is on the last page.
-
 
 (function (document, undefined) {
     const SEARCH_BOX = typeof Akumina !== "undefined" ? Akumina.Digispace.ConfigurationContext.SearchBox : "#siteSearch";
@@ -410,6 +409,8 @@
             wt.akuminaSearch.resetFlags();
             switch (flag) {
                 case "search":
+                    // The results can take longer to populate.
+                    // We have to wait for them to finish before firing the search event.
                     wt.akuminaSearch.waitForResults(function () {
                         wt.akuminaSearch.incrementCount();
                         wt.akuminaSearch.setSearchData("Search");
@@ -440,6 +441,7 @@
                 const mutation = mutations.find(({ target }) => target.className.includes("ak-widget"));
                 if (!mutation) return;
                 for (const node of mutation.addedNodes) {
+                    // Once the ia-search-tiles class is available everything we need has loaded
                     if (node.classList && node.classList.contains("ia-search-tiles")) {
                         widgetObserver.disconnect();
                         callback();
@@ -753,8 +755,10 @@
             let refineValue;
             if (wt.akuminaSearch.search.type === "People") {
                 const section = el.closest(".ia-people-filter");
-                refineType = section.querySelector(".ia-people-filter-header").textContent || "";
-                refineValue = el.innerText || "";
+                if (section) {
+                    refineType = section.querySelector(".ia-people-filter-header").textContent || "";
+                    refineValue = el.innerText || "";
+                }
             }
             else {
                 refineType = el.textContent || "";
