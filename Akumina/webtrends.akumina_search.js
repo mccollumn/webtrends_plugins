@@ -15,7 +15,10 @@
  *  searchPage: "akuminasearch.aspx"
  * 
  * @author      Nick M.
- * @version     0.9.16
+ * @version     1.0
+ * 
+ * Change History:
+ *  5/4/2021 - Initial version
  * 
  * Limitations:
  * People search doesn't indicate the number of results.
@@ -546,6 +549,11 @@
             }
             else {
                 wt.akuminaSearch.setSearchData("Suggested Item");
+                // A suggest search never generates a search event and therefore 
+                // doesn't increment the search count, so do it here.
+                if (wt.akuminaSearch.search.count === 0) {
+                    wt.akuminaSearch.incrementCount();
+                }
             }
             wt.akuminaSearch.setResultClickData(el);
             wt.akuminaSearch.track("result");
