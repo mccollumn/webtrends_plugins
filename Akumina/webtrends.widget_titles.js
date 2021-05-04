@@ -15,6 +15,7 @@
 *   widgetSelectors: ["div.ak-widget"],
 *   titleSelectors: [
 *       "div.ia-header .ia-header--title",      // Active Equities
+*       "div.slick-active a",                   // Intranet Homepage
 *       ".cppib-single-news .meta-tag",         // Intranet Homepage
 *       ".title",                               // Intranet Homepage CTA
 *       "div.search-widget-heading span",       // NeuralNet
@@ -58,16 +59,19 @@
             let elem;
             let i = 0;
             do {
-                if (type === "widgetEl") {
-                    elem = el.closest(selectors[i]);
+                try {
+                    if (type === "widgetEl") {
+                        elem = el.closest(selectors[i]);
+                    }
+                    else if (type === "titleEl") {
+                        elem = el.querySelector(selectors[i]);
+                    }
                 }
-                else if (type === "titleEl") {
-                    elem = el.querySelector(selectors[i]);
-                }
+                catch(err) {}
                 i++;
             }
-            while (!elem || i === selectors.length);
-            wt.widgetTitles[type] = elem;
+            while (!elem && i < selectors.length);
+            return elem;
         },
 
         // Adds widget title to the click event
