@@ -76,13 +76,18 @@
             return false;
         },
 
-        // Clean up or replace titles in special cases where the value returned from getAllClickTitle() is not correct.
-        cleanTitle: function (title, el) {
+        // Replaces titles in special cases where the value returned from getAllClickTitle() is not correct.
+        updateTitle: function (title, el) {
             let newTitle = null;
             // Some widgets have two titles: one for the desktop view and one for mobile.
             // In those cases we need to be specific about what text to capture.
-            if (el.querySelector(".show-in-desktop") && el.querySelector(".show-in-mobile") && el.querySelector(".two-line-summary")) {
-                newTitle =  el.querySelector(".two-line-summary").textContent.trim().replace(/\s+/g, " ");
+            if (el.querySelector(".show-in-desktop") && el.querySelector(".show-in-mobile") && el.querySelector(".news-announcement")) {
+                newTitle =  el.querySelector(".news-announcement").textContent.trim().replace(/\s+/g, " ");
+            }
+            // Some widgets include a headline and summary text.
+            // All we want is the headline.
+            else if (el.querySelector(".headline")) {
+                newTitle = el.querySelector(".headline").textContent.trim().replace(/\s+/g, " ");
             }
             return newTitle || title;
         },
@@ -94,7 +99,7 @@
                 if (wt.widgetTitles.isWidget(multiTrack.element)) {
                     const plugin = window.wt_sp_globals.pluginObj;
                     widgetTitle = plugin.getAllClickTitle(multiTrack.element, multiTrack.event);
-                    widgetTitle = wt.widgetTitles.cleanTitle(widgetTitle, multiTrack.element);
+                    widgetTitle = wt.widgetTitles.updateTitle(widgetTitle, multiTrack.element);
                 }
 
                 multiTrack.argsa.push(
