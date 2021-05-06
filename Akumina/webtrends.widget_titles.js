@@ -6,23 +6,17 @@
 *
 * Plugin Options:
 *   widgetSelectors - An array of strings representing the widget elements. (required)
-*   titleSelectors - An array of strings representing the title elements within the widget element. (required)
+*   sectionSelectors - An array of strings representing the sections of the page containing the widgets to be tracked. (required)
 *
 * Example of plugin options:
 *   async: false,
 *   waitForCallback: true,
 *   timeout: 7500,
 *   widgetSelectors: ["div.ak-widget"],
-*   titleSelectors: [
-*       "div.ia-header .ia-header--title",      // Active Equities
-*       "div.slick-active a",                   // Intranet Homepage
-*       ".cppib-single-news .meta-tag",         // Intranet Homepage
-*       ".title",                               // Intranet Homepage CTA
-*       "div.search-widget-heading span",       // NeuralNet
-*   ]
+*   sectionSelectors: [".ak-widget-row"]
 *
-* Nick M. 03/22/2021
-* Version: 1.0
+* Nick M. 05/6/2021
+* Version: 2.0
 *
 * Note: This plugin is not compatible with IE browsers.
 */
@@ -36,16 +30,32 @@
                 if (window.wt_sp_globals) {
                     clearInterval(waitForSpPlugin);
                     wt = window.wt_sp_globals;
+
+                    // IE is not supported
+                    if (wt.widgetTitles.isIE()) {
+                        wt.widgetTitles.registerPlugin();
+                        return;
+                    }
+
                     wt.widgetTitles.readOptions(options);
                     wt.widgetTitles.trackTitle(dcs, options);
                 }
             }, 100);
         },
 
+        // Checks if the brower is IE
+        isIE: function () {
+            const agent = window.navigator.userAgent;
+            if (agent.indexOf("MSIE") >= 0 || agent.indexOf("Trident") >= 0) {
+                return true;
+            }
+            return false;
+        },
+
         // Reads plugin options
         readOptions: function (options) {
             wt.widgetTitles.widgetSelectors = options.widgetSelectors || [];
-            wt.widgetTitles.titleSelectors = options.titleSelectors || [];
+            wt.widgetTitles.sectionSelectors = options.sectionSelectors || [];
         },
 
         // Let the WT tag know we're done
@@ -54,46 +64,43 @@
             window.wt_sp_globals.SPAllowRegister = false;
         },
 
-        // Gets correct element from those specified in the plugin options
-        getEl: function (el, selectors, type) {
-            let elem;
-            let i = 0;
-            do {
-                try {
-                    if (type === "widgetEl") {
-                        elem = el.closest(selectors[i]);
-                    }
-                    else if (type === "titleEl") {
-                        elem = el.querySelector(selectors[i]);
+        // Check if the click was on a widget that should be tracked
+        isWidget: function (el) {
+            for (const selector of wt.widgetTitles.widgetSelectors) {
+                if (el.closest(selector)) {
+                    for (const section of wt.widgetTitles.sectionSelectors) {
+                        if (el.closest(section)) return true;
                     }
                 }
-                catch(err) {}
-                i++;
             }
-            while (!elem && i < selectors.length);
-            return elem;
+            return false;
+        },
+
+        // Clean up or replace titles in special cases where the value returned from getAllClickTitle() is not correct.
+        cleanTitle: function (title, el) {
+            let newTitle = null;
+            // Some widgets have two titles: one for the desktop view and one for mobile.
+            // In those cases we need to be specific about what text to capture.
+            if (el.querySelector(".show-in-desktop") && el.querySelector(".show-in-mobile") && el.querySelector(".two-line-summary")) {
+                newTitle =  el.querySelector(".two-line-summary").textContent.trim().replace(/\s+/g, " ");
+            }
+            return newTitle || title;
         },
 
         // Adds widget title to the click event
         trackTitle: function (dcs, options) {
-            const widgetSelectors = wt.widgetTitles.widgetSelectors;
-            const titleSelectors = wt.widgetTitles.titleSelectors;
             dcs.addTransform(function (dcs, multiTrack) {
-                const el = multiTrack.element || {};
-                const widgetEl = wt.widgetTitles.getEl(el, widgetSelectors, "widgetEl");
-                if (widgetEl) {
-                    const titleEl = wt.widgetTitles.getEl(widgetEl, titleSelectors, "titleEl");
-                    let widgetTitle = (titleEl.textContent || titleEl.innerText).trim() || "";
-
-                    // Strip colon off end of title
-                    if (widgetTitle.endsWith(":")) {
-                        widgetTitle = widgetTitle.slice(0, -1).trim();
-                    }
-
-                    multiTrack.argsa.push(
-                        "WT.z_widget_title", widgetTitle || ""
-                    )
+                let widgetTitle = "";
+                if (wt.widgetTitles.isWidget(multiTrack.element)) {
+                    const plugin = window.wt_sp_globals.pluginObj;
+                    widgetTitle = plugin.getAllClickTitle(multiTrack.element, multiTrack.event);
+                    widgetTitle = wt.widgetTitles.cleanTitle(widgetTitle, multiTrack.element);
                 }
+
+                multiTrack.argsa.push(
+                    "WT.z_widget_title", widgetTitle
+                );
+
             }, "multitrack");
             wt.widgetTitles.registerPlugin();
         }
