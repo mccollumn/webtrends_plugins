@@ -16,7 +16,7 @@
 *   sectionSelectors: [".ak-widget-row"]
 *
 * Nick M. 05/6/2021
-* Version: 2.0
+* Version: 2.1
 *
 * Note: This plugin is not compatible with IE browsers.
 */
@@ -39,6 +39,7 @@
 
                     wt.widgetTitles.readOptions(options);
                     wt.widgetTitles.trackTitle(dcs, options);
+                    wt.widgetTitles.registerPlugin();
                 }
             }, 100);
         },
@@ -66,6 +67,7 @@
 
         // Check if the click was on a widget that should be tracked
         isWidget: function (el) {
+            if (!el) return false;
             for (const selector of wt.widgetTitles.widgetSelectors) {
                 if (el.closest(selector)) {
                     for (const section of wt.widgetTitles.sectionSelectors) {
@@ -92,22 +94,24 @@
             return newTitle || title;
         },
 
+        // Gets the widget title
+        getTitle: function (multiTrack) {
+            let widgetTitle = "";
+            if (wt.widgetTitles.isWidget(multiTrack.element)) {
+                const plugin = window.wt_sp_globals.pluginObj;
+                widgetTitle = plugin.getAllClickTitle(multiTrack.element, multiTrack.event);
+                widgetTitle = wt.widgetTitles.updateTitle(widgetTitle, multiTrack.element);
+            }
+            return widgetTitle;
+        },
+
         // Adds widget title to the click event
         trackTitle: function (dcs, options) {
             dcs.addTransform(function (dcs, multiTrack) {
-                let widgetTitle = "";
-                if (wt.widgetTitles.isWidget(multiTrack.element)) {
-                    const plugin = window.wt_sp_globals.pluginObj;
-                    widgetTitle = plugin.getAllClickTitle(multiTrack.element, multiTrack.event);
-                    widgetTitle = wt.widgetTitles.updateTitle(widgetTitle, multiTrack.element);
-                }
-
                 multiTrack.argsa.push(
-                    "WT.z_widget_title", widgetTitle
+                    "WT.z_widget_title", wt.widgetTitles.getTitle(multiTrack)
                 );
-
             }, "multitrack");
-            wt.widgetTitles.registerPlugin();
         }
     }
 })(window.document);
