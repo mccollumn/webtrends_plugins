@@ -7,16 +7,18 @@
 * Plugin Options:
 *   widgetSelectors - An array of strings representing the widget elements. (required)
 *   sectionSelectors - An array of strings representing the sections of the page containing the widgets to be tracked. (required)
+*   excludedSelectors - An array of strings representing sections of the page in which widget titles should NOT be tracked.
 *
 * Example of plugin options:
 *   async: false,
 *   waitForCallback: true,
 *   timeout: 7500,
 *   widgetSelectors: ["div.ak-widget"],
-*   sectionSelectors: [".ak-widget-row"]
+*   sectionSelectors: [".ak-widget-row"],
+*   excludedSelectors: [".ia-people-directory"]
 *
-* Nick M. 05/6/2021
-* Version: 2.1
+* Nick M. 05/20/2021
+* Version: 2.5
 *
 * Note: This plugin is not compatible with IE browsers.
 */
@@ -57,6 +59,7 @@
         readOptions: function (options) {
             wt.widgetTitles.widgetSelectors = options.widgetSelectors || [];
             wt.widgetTitles.sectionSelectors = options.sectionSelectors || [];
+            wt.widgetTitles.excludedSelectors = options.excludedSelectors || [];
         },
 
         // Let the WT tag know we're done
@@ -65,14 +68,22 @@
             window.wt_sp_globals.SPAllowRegister = false;
         },
 
+        // Check if DOM element (el) is contained within any of the elements (selectorArray)
+        inElement: function (el, selectorArray) {
+            for (const selector of selectorArray) {
+                if (el.closest(selector)) return true;
+            }
+            return false;
+        },
+
         // Check if the click was on a widget that should be tracked
         isWidget: function (el) {
             if (!el) return false;
-            for (const selector of wt.widgetTitles.widgetSelectors) {
-                if (el.closest(selector)) {
-                    for (const section of wt.widgetTitles.sectionSelectors) {
-                        if (el.closest(section)) return true;
-                    }
+
+            const wTtl = wt.widgetTitles;
+            if (wTtl.inElement(el, wTtl.widgetSelectors) && wTtl.inElement(el, wTtl.sectionSelectors)) {
+                if (!wTtl.inElement(el, wTtl.excludedSelectors)) {
+                    return true;
                 }
             }
             return false;
