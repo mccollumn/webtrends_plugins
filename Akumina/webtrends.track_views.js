@@ -13,7 +13,7 @@
  *  titleCallback: function() {...}
  *
  * @author      Nick M.
- * @version     1.10
+ * @version     1.10.1
  *
  * Change History:
  *  2021/09/14 - Now uses /page/render/ event to trigger a page view.
@@ -24,6 +24,7 @@
  *               Poll for title as not to hold up the tag unnecessarily.
  *               Customized title handling for CPPIB.
  *  2021/11/08 - Added injectTransform function so that SP plugin doesn't override changes.
+ *               Include plugin version with colelcted data.
  */
 
 (function () {
@@ -31,6 +32,7 @@
   window.wt_sp_globals.trackViews = {
     init: function (dcs, options) {
       trackViews = window.wt_sp_globals.trackViews;
+      trackViews.version = "1.10.1";
       trackViews.readOptions(options);
       // Listen for hash change and capture referring URL
       window.addEventListener("hashchange", function (event) {
@@ -121,7 +123,9 @@
           "WT.es",
           window.location.hostname + window.location.pathname + window.location.hash,
           "WT.waited_for_title",
-          Math.round(time).toString()
+          Math.round(time).toString(),
+          "WT.trackViews_tv",
+          trackViews.version
         );
       }, "collect");
       trackViews.injectTransform("trackViews");
@@ -152,7 +156,9 @@
         "WT.es",
         window.location.hostname + window.location.pathname + window.location.hash,
         "WT.waited_for_title",
-        Math.round(time).toString()
+        Math.round(time).toString(),
+        "WT.trackViews_tv",
+        trackViews.version
       ];
 
       Webtrends.multiTrack({
