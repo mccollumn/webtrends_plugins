@@ -13,7 +13,7 @@
  *  titleCallback: function() {...}
  *
  * @author      Nick M.
- * @version     1.9
+ * @version     1.10
  *
  * Change History:
  *  2021/09/14 - Now uses /page/render/ event to trigger a page view.
@@ -23,6 +23,7 @@
  *  2021/11/05 - Added ability to pass in a titleCallback function.
  *               Poll for title as not to hold up the tag unnecessarily.
  *               Customized title handling for CPPIB.
+ *  2021/11/08 - Added injectTransform function so that SP plugin doesn't override changes.
  */
 
 (function () {
@@ -66,6 +67,22 @@
       trackViews.debug = options.debug || false;
     },
 
+    // Move our transform in the queue so that the SP plugin doesn't override the changes
+    injectTransform: function (identifier) {
+      const transformCollect = Webtrends.events["transform.collect"];
+      for (transformsArray in transformCollect) {
+        const transforms = transformCollect[transformsArray];
+        for (let i = 0; i < transforms.length; i++) {
+          let funcStr = transforms[i].toString();
+          if (funcStr.indexOf(identifier) !== -1) {
+            let funcToMove = transforms[i];
+            transforms.splice(i, 1);
+            transforms.unshift(funcToMove);
+          }
+        }
+      }
+    },
+
     // Let the WT tag know we're done
     registerPlugin: function () {
       window.wt_sp_globals.pluginObj.tagObj.registerPluginCallback("trackViews");
@@ -86,19 +103,28 @@
     // Add hash and title to page view event
     transform: function (ti, time) {
       Webtrends.addTransform(function (dcsObj, multiTrack) {
+        // Transform identifier: trackViews
         const plugin = wt_sp_globals.pluginObj;
         const res = plugin.getURIArrFromHREF(window.location.href);
         const query = dcsObj.DCS.dcsqry ? dcsObj.DCS.dcsqry : res.dcsqry;
         multiTrack.argsa.push(
-          "DCS.dcsuri", dcsObj.DCS.dcsuri + res.dcshash,
-          "DCS.dcsqry", query,
-          "WT.ti", ti,
-          "WT.shp_page_ti", ti,
-          "WT.cg_s",  ti,
-          "WT.es", window.location.hostname + window.location.pathname + window.location.hash,
-          "WT.waited_for_title", Math.round(time).toString()
+          "DCS.dcsuri",
+          dcsObj.DCS.dcsuri + res.dcshash,
+          "DCS.dcsqry",
+          query,
+          "WT.ti",
+          ti,
+          "WT.shp_page_ti",
+          ti,
+          "WT.cg_s",
+          ti,
+          "WT.es",
+          window.location.hostname + window.location.pathname + window.location.hash,
+          "WT.waited_for_title",
+          Math.round(time).toString()
         );
       }, "collect");
+      trackViews.injectTransform("trackViews");
       trackViews.registerPlugin();
     },
 
@@ -107,16 +133,26 @@
       const plugin = wt_sp_globals.pluginObj;
       const res = plugin.getURIArrFromHREF(window.location.href);
       const argsa = [
-        "DCS.dcssip", res.dcssip,
-        "DCS.dcsuri", res.dcsuri + res.dcshash,
-        "DCS.dcsqry", res.dcsqry,
-        "DCS.dcsref", trackViews.ref,
-        "WT.ti", ti,
-        "WT.shp_page_ti", ti,
-        "WT.cg_s", ti,
-        "WT.dl", "0",
-        "WT.es", window.location.hostname + window.location.pathname + window.location.hash,
-        "WT.waited_for_title", Math.round(time).toString()
+        "DCS.dcssip",
+        res.dcssip,
+        "DCS.dcsuri",
+        res.dcsuri + res.dcshash,
+        "DCS.dcsqry",
+        res.dcsqry,
+        "DCS.dcsref",
+        trackViews.ref,
+        "WT.ti",
+        ti,
+        "WT.shp_page_ti",
+        ti,
+        "WT.cg_s",
+        ti,
+        "WT.dl",
+        "0",
+        "WT.es",
+        window.location.hostname + window.location.pathname + window.location.hash,
+        "WT.waited_for_title",
+        Math.round(time).toString()
       ];
 
       Webtrends.multiTrack({
